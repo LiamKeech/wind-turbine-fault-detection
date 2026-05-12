@@ -19,60 +19,35 @@ This project implements two anomaly detection methods to identify faults in wind
 
 ## Dataset Schema
 ### Core Sensor Columns
-| Column | Type | Description | Unit |
-|--------|------|-------------|------|
-| timestamp | datetime | UTC timestamp of measurement | ISO 8601 |
-| gearbox_oil_temp | float | Temperature of gearbox oil | Celsius |
-| gearbox_bearing_temp | float | Temperature of gearbox bearing | Celsius |
-| vibration_x | float | Vibration amplitude along X-axis | mm/s |
-| vibration_y | float | Vibration amplitude along Y-axis | mm/s |
-| vibration_z | float | Vibration amplitude along Z-axis | mm/s |
-| oil_pressure | float | Hydraulic pressure in oil system | bar |
-| particle_count | int | Number of particles in oil (contamination indicator) | count |
+| Column | Type | Description | Unit | Example |
+|--------|------|-------------|------|---|
+| timestamp | datetime | UTC timestamp of measurement | ISO 8601 | 2025-01-01 00:00:00 |
+| gearbox_oil_temp | float | Temperature of gearbox oil | Celsius | 59.24 |
+| gearbox_bearing_temp | float | Temperature of gearbox bearing | Celsius | 65.85 |
+| vibration_x | float | Vibration amplitude along X-axis | mm/s | 0.0109 |
+| vibration_y | float | Vibration amplitude along Y-axis | mm/s | 0.0092 |
+| vibration_z | float | Vibration amplitude along Z-axis | mm/s | 0.013 |
+| oil_pressure | float | Hydraulic pressure in oil system | bar | 4.53 |
+| particle_count | int | Number of particles in oil (contamination indicator) | count | 100 |
 
 ## Software Architecture
 Six-layer pipeline-oriented design with clean boundaries and configuration-driven execution:
 
 ### 1) Data Ingestion Layer
-- **CSV/Parquet Loading**: Read raw sensor data from `data/raw/` with configurable paths
-- **Schema Validation**: Enforce dtypes, value ranges, and timestamp monotonicity
+- **CSV Loading**: Read raw sensor data from `data\turbine_5yr_complex_data.csv`
 - **Missing Value Handling**: Document, impute, or exclude rows based on thresholds
-- **Persistence**: Write validated data to `data/interim/`
 
 ### 2) Data Preprocessing Layer
 - **Deduplication**: Remove duplicate records based on timestamp
-- **Outlier Detection**: Flag statistical outliers (e.g., 3σ rule) for review
-- **Time Alignment**: Resample irregular sampling intervals
-- **Stationarity Checks**: Log-transform skewed distributions
-- **Output**: `data/processed/` with metadata tracking
+- **Output**: `data\processed\` with metadata tracking
 
-### 3) Feature Engineering Layer
-- **Windowing**: Create sliding windows (e.g., 60-second, 5-minute windows)
-- **Rolling Statistics**: Min, max, mean, std, median per window across all sensor columns
-- **Lag Features**: Previous values for time-lagged dependencies (LOF method)
-- **Signal Transforms**:
-  - Z-score normalization per sensor
-  - First/second derivatives (rate of change)
-  - FFT-based frequency domain features (optional)
-  - Entropy and approximate entropy (signal complexity)
-- **Feature Store**: Save normalized feature matrices with column metadata
-
-### 4) Anomaly Detection Methods
+### 3) Anomaly Detection Methods
 
 #### Method A: LSTM Autoencoder
 - **Architecture**:
   - Encoder: 2-3 stacked LSTM layers → compressed latent representation
   - Decoder: 2-3 stacked LSTM layers → reconstructed time series
   - Reconstruction loss (MSE) as anomaly score
-- **Hyperparameters**:
-  - Sequence length (window size): 30-60 timesteps
-  - Latent dimension: 8-16
-  - LSTM hidden units: 32-64 per layer
-  - Dropout: 0.2-0.3 (regularization)
-  - Batch size: 32-64
-  - Learning rate: 1e-3 to 1e-4 (Adam optimizer)
-  - Epochs: Early stopping on validation loss
-- **Advantages**: Captures temporal patterns; handles multivariate correlations
 - **Training**:
   - Time-based split: 70% train, 15% validation, 15% test
   - Normal data only (unsupervised)
@@ -84,17 +59,12 @@ Six-layer pipeline-oriented design with clean boundaries and configuration-drive
   - Scikit-learn LOF with k-nearest neighbors
   - Density-based local outlier detection
   - Anomaly scores: LOF value > threshold → anomaly
-- **Hyperparameters**:
-  - n_neighbors: 20-50 (typically 5-10% of training set)
-  - contamination: 0.05-0.15 (expected fraction of anomalies)
-  - metric: Euclidean (scaled features)
-- **Advantages**: Computationally efficient; interpretable; no temporal assumption
 - **Training**:
   - Fit on rolling windows or entire training set
   - Standardize features (StandardScaler)
 - **Inference**: Direct LOF score output for new samples
 
-### 5) Model Evaluation Layer
+### 4) Model Evaluation Layer
 - **Train/Validation/Test Splits**: Time-based (no future leakage)
 - **Metrics**:
   - Reconstruction error distribution (LSTM): mean, std, percentiles
@@ -119,24 +89,12 @@ Six-layer pipeline-oriented design with clean boundaries and configuration-drive
   - Load trained models (LSTM + LOF)
   - Generate anomaly scores and flags
   - Write results to `outputs/predictions/`
-- **Artifact Versioning**:
-  - Model checkpoints with timestamp/semantic version (v1.0.0)
-  - Feature transformers (StandardScaler, PCA, etc.) saved as pickle
-  - Configuration snapshots (model hyperparams, feature list)
-- **Reproducibility**:
-  - Fixed random seeds (NumPy, PyTorch, Scikit-Learn)
-  - Logged config, data versions, code commit hash
-  - Deterministic preprocessing order
 
 ### 7) Orchestration and Experiment Tracking
 - **Config-Driven Execution**:
   - `configs/base.yaml`: Default paths, common hyperparams
   - `configs/train.yaml`: Training-specific overrides (epochs, learning rate)
   - `configs/score.yaml`: Inference-specific config (batch size, model path)
-- **Environment Variables**: All file paths via `${DATA_DIR}`, `${MODEL_DIR}` patterns
-- **Experiment Logging**:
-  - MLflow or manual JSON logging: model params, metrics, artifacts
-  - Notebook-based exploration captured in `notebooks/`
 
 ## Professional Folder Structure
 ```
@@ -144,15 +102,12 @@ wind-turbine-fault-detection/
 │
 ├── README.md                           # Project documentation
 ├── OVERVIEW.md                         # This file
-├── pyproject.toml                      # Package and dependency configuration
 ├── Dockerfile                          # Container image definition
 ├── .dockerignore                       # Files to exclude from Docker build
 │
 ├── data/
 │   ├── raw/                            # Immutable raw sensor data (CSV/Parquet)
-│   ├── interim/                        # Validated, deduplicated data
 │   ├── processed/                      # Normalized, feature-engineered data
-│   └── external/                       # Reference datasets (optional)
 │
 ├── src/
 │   └── fault_detection/
@@ -205,13 +160,8 @@ wind-turbine-fault-detection/
 │           └── device.py               # PyTorch device management (CPU/GPU)
 │
 ├── notebooks/
-│   ├── 01_data_exploration.ipynb       # EDA: load, visualize sensor data
-│   ├── 02_preprocessing.ipynb          # Deduplication, outlier analysis
-│   ├── 03_feature_engineering.ipynb    # Feature creation and analysis
-│   ├── 04_lstm_autoencoder_demo.ipynb  # LSTM training, tuning, visualization
-│   ├── 05_lof_demo.ipynb               # LOF training, tuning, visualization
-│   ├── 06_model_comparison.ipynb       # Side-by-side evaluation of methods
-│   └── 07_deployment_guide.ipynb       # Instructions for batch scoring
+│   ├── 01 LSTM Autoencoder.ipynb      
+│   ├── 02 LOF.ipynb          
 │
 ├── scripts/
 │   ├── train.py                        # CLI entry point for model training
