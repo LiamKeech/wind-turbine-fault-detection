@@ -1,0 +1,156 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+.jupyter/
+*.ipynb.bak
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# PyTorch and Model Files
+*.ckpt
+*.checkpoint
+checkpoints/
+ts/
+*.model
+model_weights/
+model_checkpoints/
+
+# Logs and Outputs
+logs/
+*.log
+runs/
+wandb/
+lightning_logs/
+.mlflow/
+mlruns/
+
+# Temporary and Cache Files
+.cache/
+.pytest_cache/
+.coverage
+.hypothesis/
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# OS-specific
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+desktop.ini
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
+
+# Windows
+$RECYCLE.BIN/
+
+# Poetry and dependency management
+poetry.lock
+Pipfile.lock
+
+# Conda
+.conda/
+conda-env.yml
+
+# Tensorboard
+runs/
+events.out.tfevents*
+
+# Hugging Face (if using transformers)
+.cache/huggingface/
+
+# DVC (Data Version Control)
+.dvc/
+.dvc.lock
+
+# Hydra outputs
+outputs/
+multirun/
+
+# Ray Tune
+~/ray_results
+
+# Optuna
+optuna_studies/
+
+# Weights and Biases
+wandb/
+
+# Misc
+*.xlsx~
+.vscode/settings.json
+debug_output/
