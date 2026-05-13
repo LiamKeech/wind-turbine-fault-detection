@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Sequence
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from torch.utils.data import DataLoader
-from features.autoencoder_features import WindowedFeatures
+from features.lstm_autoencoder_features import WindowedFeatures
 from models.lstm_autoencoder import LSTMAutoencoder
 import numpy as np
 import pandas as pd

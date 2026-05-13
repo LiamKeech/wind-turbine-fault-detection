@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
-from features.autoencoder_features import WindowedSplits
+from features.lstm_autoencoder_features import WindowedSplits
 from models.lstm_autoencoder import LSTMAutoencoder
 import numpy as np
 import torch
