@@ -1,5 +1,5 @@
 """Model package exports."""
 
-from .lof import LofDetector
+from .lof import LOFAnomalyDetector, LOFConfig
 
-__all__ = ["LofDetector"]
+__all__ = ["LOFAnomalyDetector", "LOFConfig"]
