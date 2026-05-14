@@ -20,8 +20,8 @@ ENGINEERED_FEATURES = [
 	"particle_count_delta",
 	"hour_sin",
 	"hour_cos",
-	"dayofyear_sin",
-	"dayofyear_cos",
+	"month_sin",
+	"month_cos",
 ]
 
 
@@ -78,11 +78,11 @@ def engineer_features(
 	)
 	timestamps = pd.to_datetime(features["timestamp"], errors="coerce")
 	hour = timestamps.dt.hour + (timestamps.dt.minute / 60.0)
-	dayofyear = timestamps.dt.dayofyear.astype(float)
+	month = timestamps.dt.month.astype(float)
 	features["hour_sin"] = np.sin(2 * np.pi * hour / 24.0)
 	features["hour_cos"] = np.cos(2 * np.pi * hour / 24.0)
-	features["dayofyear_sin"] = np.sin(2 * np.pi * dayofyear / 365.25)
-	features["dayofyear_cos"] = np.cos(2 * np.pi * dayofyear / 365.25)
+	features["month_sin"] = np.sin(2 * np.pi * (month - 1) / 12.0)
+	features["month_cos"] = np.cos(2 * np.pi * (month - 1) / 12.0)
 
 	feature_cols = BASE_FEATURES + ENGINEERED_FEATURES
 	return features, feature_cols

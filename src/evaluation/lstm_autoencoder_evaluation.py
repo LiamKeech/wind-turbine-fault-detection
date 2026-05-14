@@ -45,6 +45,25 @@ def flag_anomalies(errors: np.ndarray, threshold: float) -> np.ndarray:
 	return errors > threshold
 
 
+def align_labels_with_sequences(
+	labels: Iterable,
+	window_size: int,
+	stride: int,
+) -> np.ndarray:
+	label_series = pd.Series(labels).reset_index(drop=True)
+	if window_size <= 0 or stride <= 0:
+		raise ValueError("window_size and stride must be positive.")
+	if len(label_series) < window_size:
+		raise ValueError("Not enough labels to align with one sequence.")
+
+	num_sequences = 1 + (len(label_series) - window_size) // stride
+	seq_labels = np.zeros(num_sequences, dtype=int)
+	for i in range(num_sequences):
+		start = i * stride
+		seq_labels[i] = int(label_series.iloc[start:start + window_size].max())
+	return seq_labels
+
+
 def compute_classification_metrics(
 	y_true: np.ndarray,
 	y_pred: np.ndarray,
@@ -95,6 +114,23 @@ def evaluate_anomaly_scores(
 ) -> Dict[str, float]:
 	y_pred = (np.asarray(scores) > threshold).astype(int)
 	return compute_classification_metrics(y_true, y_pred, y_scores=scores)
+
+
+def evaluate_reconstruction_errors(
+	train_errors: np.ndarray,
+	eval_errors: np.ndarray,
+	eval_labels: Iterable,
+	threshold_quantile: float,
+	window_size: int,
+	stride: int,
+) -> Dict[str, float]:
+	threshold = compute_threshold(train_errors, threshold_quantile)
+	y_true = align_labels_with_sequences(eval_labels, window_size, stride)
+	if len(eval_errors) != len(y_true):
+		raise ValueError("eval_errors length must match aligned label length.")
+	metrics = evaluate_anomaly_scores(y_true, eval_errors, threshold)
+	metrics["threshold"] = float(threshold)
+	return metrics
 
 
 def align_scores_with_timestamps(

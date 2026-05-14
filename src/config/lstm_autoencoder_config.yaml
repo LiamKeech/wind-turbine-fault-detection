@@ -1,8 +1,9 @@
 data:
-  raw_path: data/raw/turbine_5yr_complex_data.csv
+  raw_path: data/raw/turbine_5yr_labeled_data.csv
   processed_dir: data/processed/lstm_autoencoder
   processed_filename: processed_features.csv
   timestamp_col: timestamp
+  label_col: is_anomaly
   window_size: 36
   stride: 1
   val_split: 0.2
@@ -10,7 +11,7 @@ data:
 model:
   input_size: 15
   hidden_size: 32
-  latent_size: 8
+  latent_size: 12
   num_layers: 1
   dropout: 0.2
   recurrent_dropout: 0.2

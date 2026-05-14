@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -18,7 +19,18 @@ def prepare_dataloaders(
 	train_sequences,
 	val_sequences,
 	batch_size: int,
+	train_labels: Optional[np.ndarray] = None,
+	normal_label: int = 0,
 ) -> Tuple[DataLoader, DataLoader]:
+	if train_labels is not None:
+		labels = np.asarray(train_labels).astype(int)
+		if labels.shape[0] != len(train_sequences):
+			raise ValueError("train_labels length must match train_sequences length.")
+		mask = labels == normal_label
+		if not np.any(mask):
+			raise ValueError("No normal sequences available for training.")
+		train_sequences = train_sequences[mask]
+
 	train_ds = TensorDataset(torch.tensor(train_sequences, dtype=torch.float32))
 	val_ds = TensorDataset(torch.tensor(val_sequences, dtype=torch.float32))
 	train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
