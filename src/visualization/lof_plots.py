@@ -1,20 +1,26 @@
-"""Matplotlib visualizations for LOF anomaly detection."""
-
 from __future__ import annotations
-
 from typing import Iterable, List, Optional, Sequence, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 
 def select_top_features(
     df: pd.DataFrame,
     feature_cols: Iterable[str],
     n_features: int = 4,
 ) -> List[str]:
-    """Select top features by variance for plotting."""
+    """
+    Select the top N features by variance.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing feature columns.
+        feature_cols (Iterable[str]): Feature column names to consider.
+        n_features (int, optional): Number of top features to select. Defaults to 4.
+
+    Returns:
+        List[str]: List of top feature column names ordered by variance (highest first).
+    """
+    
     columns = [col for col in feature_cols if col in df.columns]
     if not columns:
         return []
@@ -26,7 +32,6 @@ def select_top_features(
     variances = numeric_df.var().sort_values(ascending=False)
     return variances.head(n_features).index.tolist()
 
-
 def plot_feature_anomalies(
     df: pd.DataFrame,
     timestamp_col: str = "timestamp",
@@ -36,7 +41,25 @@ def plot_feature_anomalies(
     split_indices: Optional[Sequence[int]] = None,
     figsize: Tuple[int, int] = (12, 8),
 ):
-    """Plot multiple features with anomaly overlays."""
+    """
+    Plot top features with anomalies highlighted.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing feature data and anomaly labels.
+        timestamp_col (str, optional): Name of the timestamp column. Defaults to "timestamp".
+        feature_cols (Optional[Iterable[str]]): Feature columns to plot. If None, numeric columns are selected. Defaults to None.
+        anomaly_col (str, optional): Name of the anomaly label column. Defaults to "is_anomaly".
+        n_features (int, optional): Number of top features to plot. Defaults to 4.
+        split_indices (Optional[Sequence[int]]): Indices where vertical lines should be drawn (e.g., train/val/test splits). Defaults to None.
+        figsize (Tuple[int, int], optional): Figure size (width, height). Defaults to (12, 8).
+
+    Returns:
+        Tuple: Matplotlib figure and axes objects.
+
+    Raises:
+        ValueError: If no numeric feature columns are available to plot.
+    """
+    
     if feature_cols is None:
         feature_cols = df.select_dtypes(include=[np.number]).columns
         feature_cols = [
@@ -81,7 +104,6 @@ def plot_feature_anomalies(
     plt.tight_layout()
     return fig, axes
 
-
 def plot_anomaly_score_timeline(
     df: pd.DataFrame,
     timestamp_col: str = "timestamp",
@@ -90,7 +112,24 @@ def plot_anomaly_score_timeline(
     split_indices: Optional[Sequence[int]] = None,
     figsize: Tuple[int, int] = (12, 4),
 ):
-    """Plot anomaly scores over time with an optional threshold."""
+    """
+    Plot anomaly scores over time.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing anomaly scores.
+        timestamp_col (str, optional): Name of the timestamp column. Defaults to "timestamp".
+        score_col (str, optional): Name of the anomaly score column. Defaults to "anomaly_score".
+        threshold (Optional[float]): Threshold value to display as a reference line. Defaults to None.
+        split_indices (Optional[Sequence[int]]): Indices where vertical lines should be drawn. Defaults to None.
+        figsize (Tuple[int, int], optional): Figure size (width, height). Defaults to (12, 4).
+
+    Returns:
+        Tuple: Matplotlib figure and axes objects.
+
+    Raises:
+        ValueError: If the score column is not found in the DataFrame.
+    """
+    
     if score_col not in df.columns:
         raise ValueError(f"Missing score column: {score_col}")
 
@@ -108,7 +147,6 @@ def plot_anomaly_score_timeline(
     plt.tight_layout()
     return fig, ax
 
-
 def plot_anomaly_score_histogram(
     df: pd.DataFrame,
     score_col: str = "anomaly_score",
@@ -116,7 +154,23 @@ def plot_anomaly_score_histogram(
     bins: int = 50,
     figsize: Tuple[int, int] = (6, 4),
 ):
-    """Plot the anomaly score distribution."""
+    """
+    Plot histogram of anomaly scores.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing anomaly scores.
+        score_col (str, optional): Name of the anomaly score column. Defaults to "anomaly_score".
+        threshold (Optional[float]): Threshold value to display as a reference line. Defaults to None.
+        bins (int, optional): Number of histogram bins. Defaults to 50.
+        figsize (Tuple[int, int], optional): Figure size (width, height). Defaults to (6, 4).
+
+    Returns:
+        Tuple: Matplotlib figure and axes objects.
+
+    Raises:
+        ValueError: If the score column is not found in the DataFrame.
+    """
+    
     if score_col not in df.columns:
         raise ValueError(f"Missing score column: {score_col}")
 
@@ -132,7 +186,6 @@ def plot_anomaly_score_histogram(
     plt.tight_layout()
     return fig, ax
 
-
 def plot_anomaly_rate_timeline(
     df: pd.DataFrame,
     timestamp_col: str = "timestamp",
@@ -141,7 +194,24 @@ def plot_anomaly_rate_timeline(
     split_indices: Optional[Sequence[int]] = None,
     figsize: Tuple[int, int] = (12, 4),
 ):
-    """Plot the rolling anomaly rate over time."""
+    """
+    Plot rolling anomaly rate over time.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing anomaly labels.
+        timestamp_col (str, optional): Name of the timestamp column. Defaults to "timestamp".
+        anomaly_col (str, optional): Name of the anomaly label column. Defaults to "is_anomaly".
+        window (int, optional): Window size for rolling mean calculation. Defaults to 144.
+        split_indices (Optional[Sequence[int]]): Indices where vertical lines should be drawn. Defaults to None.
+        figsize (Tuple[int, int], optional): Figure size (width, height). Defaults to (12, 4).
+
+    Returns:
+        Tuple: Matplotlib figure and axes objects.
+
+    Raises:
+        ValueError: If the anomaly column is not found in the DataFrame.
+    """
+    
     if anomaly_col not in df.columns:
         raise ValueError(f"Missing anomaly column: {anomaly_col}")
 
@@ -161,7 +231,6 @@ def plot_anomaly_rate_timeline(
     plt.tight_layout()
     return fig, ax
 
-
 def plot_anomaly_rate_by_split(
     df: pd.DataFrame,
     train_end: int,
@@ -169,7 +238,23 @@ def plot_anomaly_rate_by_split(
     anomaly_col: str = "is_anomaly",
     figsize: Tuple[int, int] = (6, 4),
 ):
-    """Plot anomaly rates by train/val/test split."""
+    """
+    Plot anomaly rates for train, validation, and test splits.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing anomaly labels.
+        train_end (int): Index where training set ends.
+        val_end (int): Index where validation set ends.
+        anomaly_col (str, optional): Name of the anomaly label column. Defaults to "is_anomaly".
+        figsize (Tuple[int, int], optional): Figure size (width, height). Defaults to (6, 4).
+
+    Returns:
+        Tuple: Matplotlib figure and axes objects.
+
+    Raises:
+        ValueError: If the anomaly column is not found in the DataFrame.
+    """
+    
     if anomaly_col not in df.columns:
         raise ValueError(f"Missing anomaly column: {anomaly_col}")
 
@@ -187,18 +272,39 @@ def plot_anomaly_rate_by_split(
     plt.tight_layout()
     return fig, ax
 
-
 def _resolve_time_axis(df: pd.DataFrame, timestamp_col: str) -> pd.Series:
+    """
+    Resolve the time axis for plotting, using timestamp column if available.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to extract time axis from.
+        timestamp_col (str): Name of the timestamp column.
+
+    Returns:
+        pd.Series: Series containing timestamps or row indices if timestamp column not found.
+    """
+    
     if timestamp_col in df.columns:
         return df[timestamp_col]
     return pd.Series(df.index, index=df.index, name="index")
-
 
 def _add_split_lines(
     ax: plt.Axes,
     time_axis: pd.Series,
     split_indices: Optional[Sequence[int]],
 ) -> None:
+    """
+    Add vertical lines to plot axes at specified split indices.
+
+    Args:
+        ax (plt.Axes): Matplotlib axes object to modify.
+        time_axis (pd.Series): Time values corresponding to the split indices.
+        split_indices (Optional[Sequence[int]]): Indices where vertical lines should be drawn.
+
+    Returns:
+        None
+    """
+    
     if not split_indices or len(time_axis) == 0:
         return
 
