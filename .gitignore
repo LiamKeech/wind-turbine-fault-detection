@@ -64,6 +64,8 @@ ts/
 *.model
 model_weights/
 model_checkpoints/
+*.pt
+*.pkl
 
 # Logs and Outputs
 logs/
