@@ -5,6 +5,16 @@ import torch
 import yaml
 
 def load_config(config_path: Path) -> Dict[str, Any]:
+	"""
+	Load YAML configuration file.
+
+	Args:
+		config_path (Path): Path to YAML configuration file.
+
+	Returns:
+		Dict[str, Any]: Configuration dictionary parsed from YAML file.
+	"""
+ 
 	with open(config_path, "r", encoding="utf-8") as file:
 		return yaml.safe_load(file) or {}
 class LSTMAutoencoder(nn.Module):
@@ -17,6 +27,21 @@ class LSTMAutoencoder(nn.Module):
 		dropout: float,
 		recurrent_dropout: float,
 	) -> None:
+		"""
+		Initialize LSTM Autoencoder model.
+
+		Args:
+			input_size (int): Number of input features per time step.
+			hidden_size (int): Number of hidden units in LSTM layers.
+			latent_size (int): Size of latent representation.
+			num_layers (int): Number of LSTM layers in encoder and decoder.
+			dropout (float): Dropout rate for fully connected layers.
+			recurrent_dropout (float): Dropout rate for recurrent connections.
+
+		Returns:
+			None
+		"""
+  
 		super().__init__()
 		self.num_layers = num_layers
 		self.dropout = nn.Dropout(dropout)
@@ -40,6 +65,16 @@ class LSTMAutoencoder(nn.Module):
 		self.output_layer = nn.Linear(hidden_size, input_size)
 
 	def _locked_dropout(self, x: torch.Tensor) -> torch.Tensor:
+		"""
+		Apply locked/variational dropout to recurrent connections.
+
+		Args:
+			x (torch.Tensor): Input tensor to apply dropout to.
+
+		Returns:
+			torch.Tensor: Tensor with locked dropout applied.
+		"""
+  
 		if not self.training or self.recurrent_dropout <= 0:
 			return x
 		mask = x.new_empty(x.size(0), 1, x.size(2)).bernoulli_(1 - self.recurrent_dropout)
@@ -47,6 +82,16 @@ class LSTMAutoencoder(nn.Module):
 		return x * mask
 
 	def forward(self, x: torch.Tensor) -> torch.Tensor:
+		"""
+		Forward pass through the autoencoder.
+
+		Args:
+			x (torch.Tensor): Input tensor of shape (batch_size, seq_len, input_size).
+
+		Returns:
+			torch.Tensor: Reconstructed tensor of same shape as input.
+		"""
+  
 		x = self.dropout(x)
 		x = self._locked_dropout(x)
 		_, (hidden, _) = self.encoder(x)
@@ -64,6 +109,16 @@ class LSTMAutoencoder(nn.Module):
 
 	@classmethod
 	def from_config(cls, config_path: Path) -> "LSTMAutoencoder":
+		"""
+		Instantiate LSTMAutoencoder from configuration file.
+
+		Args:
+			config_path (Path): Path to YAML configuration file containing model parameters.
+
+		Returns:
+			LSTMAutoencoder: Initialized model instance.
+		"""
+  
 		config = load_config(config_path)
 		model_cfg = config.get("model", {})
 		required = [

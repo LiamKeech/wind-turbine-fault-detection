@@ -1,5 +1,4 @@
 from typing import List, Tuple
-
 import numpy as np
 import pandas as pd
 
@@ -24,12 +23,23 @@ ENGINEERED_FEATURES = [
 	"month_cos",
 ]
 
-
 def _clean_particle_delta(
 	delta: pd.Series,
 	reset_quantile: float,
 	clip_quantile: float,
 ) -> pd.Series:
+	"""
+	Clean particle count delta series by resetting negative spikes and clipping outliers.
+
+	Args:
+		delta (pd.Series): Particle count delta series to clean.
+		reset_quantile (float): Quantile threshold for resetting negative deltas. Must be between 0 and 1.
+		clip_quantile (float): Quantile threshold for clipping extreme values. Must be in (0, 1].
+
+	Returns:
+		pd.Series: Cleaned particle delta series with NaN values filled as 0.
+	"""
+ 
 	cleaned = delta.copy()
 
 	if not 0 < reset_quantile < 1:
@@ -47,12 +57,23 @@ def _clean_particle_delta(
 
 	return cleaned.fillna(0.0)
 
-
 def engineer_features(
 	df: pd.DataFrame,
 	particle_reset_quantile: float = 0.01,
 	particle_delta_clip_quantile: float = 0.99,
 ) -> Tuple[pd.DataFrame, List[str]]:
+	"""
+	Engineer features from raw turbine sensor data.
+
+	Args:
+		df (pd.DataFrame): Raw DataFrame containing base features and timestamp column.
+		particle_reset_quantile (float): Quantile for resetting negative particle count deltas. Default is 0.01.
+		particle_delta_clip_quantile (float): Quantile for clipping particle count delta outliers. Default is 0.99.
+
+	Returns:
+		Tuple[pd.DataFrame, List[str]]: DataFrame with engineered features and list of all feature column names.
+	"""
+ 
 	features = df.copy()
 
 	features["temp_diff"] = features["gearbox_bearing_temp"] - features["gearbox_oil_temp"]

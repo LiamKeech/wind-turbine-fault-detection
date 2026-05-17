@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -8,12 +7,20 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-
 def resolve_device(device_value: str) -> torch.device:
+	"""
+	Resolve device string to torch.device object.
+
+	Args:
+		device_value (str): Device specification string ('auto', 'cpu', 'cuda', etc.).
+
+	Returns:
+		torch.device: Resolved device object. If 'auto', returns GPU if available, otherwise CPU.
+	"""
+ 
 	if device_value == "auto":
 		return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	return torch.device(device_value)
-
 
 def prepare_dataloaders(
 	train_sequences,
@@ -22,6 +29,20 @@ def prepare_dataloaders(
 	train_labels: Optional[np.ndarray] = None,
 	normal_label: int = 0,
 ) -> Tuple[DataLoader, DataLoader]:
+	"""
+	Prepare training and validation dataloaders.
+
+	Args:
+		train_sequences: Array of training sequences.
+		val_sequences: Array of validation sequences.
+		batch_size (int): Batch size for dataloaders.
+		train_labels (Optional[np.ndarray]): Labels for training sequences. If provided, only normal sequences are used. Default is None.
+		normal_label (int): Label value indicating normal samples. Default is 0.
+
+	Returns:
+		Tuple[DataLoader, DataLoader]: Training and validation dataloaders.
+	"""
+ 
 	if train_labels is not None:
 		labels = np.asarray(train_labels).astype(int)
 		if labels.shape[0] != len(train_sequences):
@@ -37,7 +58,6 @@ def prepare_dataloaders(
 	val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 	return train_loader, val_loader
 
-
 def train_lstm_autoencoder(
 	model: nn.Module,
 	train_loader: DataLoader,
@@ -45,6 +65,20 @@ def train_lstm_autoencoder(
 	training_cfg: Dict,
 	device: torch.device,
 ) -> Dict[str, list]:
+	"""
+	Train LSTM autoencoder with early stopping.
+
+	Args:
+		model (nn.Module): LSTM autoencoder model to train.
+		train_loader (DataLoader): Training dataloader.
+		val_loader (DataLoader): Validation dataloader.
+		training_cfg (Dict): Training configuration dictionary with keys: epochs, learning_rate, weight_decay, grad_clip, early_stopping_patience, early_stopping_min_delta, random_seed.
+		device (torch.device): Device to train on.
+
+	Returns:
+		Dict[str, list]: Training history dictionary with train_loss, val_loss, best_val_loss, and stopped_epoch.
+	"""
+ 
 	torch.manual_seed(int(training_cfg.get("random_seed", 42)))
 	criterion = nn.MSELoss()
 	optimizer = torch.optim.Adam(
@@ -116,15 +150,33 @@ def train_lstm_autoencoder(
 
 	return history
 
-
 def save_model(model: nn.Module, output_path: Path) -> Path:
+	"""
+	Save trained model state dictionary to disk.
+
+	Args:
+		model (nn.Module): Trained model to save.
+		output_path (Path): Destination file path for model weights.
+
+	Returns:
+		Path: Path where the model was saved.
+	"""
 	output_path = Path(output_path)
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	torch.save(model.state_dict(), output_path)
 	return output_path
 
-
 def plot_training_history(history: Dict[str, list]):
+	"""
+	Plot training and validation loss history.
+
+	Args:
+		history (Dict[str, list]): Training history dictionary with 'train_loss' and 'val_loss' keys.
+
+	Returns:
+		matplotlib.axes.Axes: Axes object with plotted training history.
+	"""
+ 
 	fig, ax = plt.subplots(figsize=(8, 3))
 	ax.plot(history.get("train_loss", []), label="train")
 	ax.plot(history.get("val_loss", []), label="val")
