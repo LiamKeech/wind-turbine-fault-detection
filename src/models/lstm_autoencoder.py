@@ -1,16 +1,12 @@
 from pathlib import Path
 from typing import Any, Dict
-
+from torch import nn
 import torch
 import yaml
-from torch import nn
-
 
 def load_config(config_path: Path) -> Dict[str, Any]:
 	with open(config_path, "r", encoding="utf-8") as file:
 		return yaml.safe_load(file) or {}
-
-
 class LSTMAutoencoder(nn.Module):
 	def __init__(
 		self,
