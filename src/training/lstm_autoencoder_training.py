@@ -1,194 +1,186 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, List, Optional
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
-from features.lstm_autoencoder_features import WindowedSplits
-from models.lstm_autoencoder import LSTMAutoencoder
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
-@dataclass(frozen=True)
-class AutoencoderLoaders:
-    """
-    DataLoaders for LSTM autoencoder training.
-    """    
+def resolve_device(device_value: str) -> torch.device:
+	"""
+	Resolve device string to torch.device object.
 
-    train: DataLoader
-    val: DataLoader
-    test: DataLoader
+	Args:
+		device_value (str): Device specification string ('auto', 'cpu', 'cuda', etc.).
 
-@dataclass(frozen=True)
-class TrainingResult:
-    """
-    Result of LSTM autoencoder training, including history and best model state.
-    """    
+	Returns:
+		torch.device: Resolved device object. If 'auto', returns GPU if available, otherwise CPU.
+	"""
+ 
+	if device_value == "auto":
+		return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	return torch.device(device_value)
 
-    history: Dict[str, List[float]]
-    best_state_dict: Dict[str, torch.Tensor]
-    best_val_loss: float
+def prepare_dataloaders(
+	train_sequences,
+	val_sequences,
+	batch_size: int,
+	train_labels: Optional[np.ndarray] = None,
+	normal_label: int = 0,
+) -> Tuple[DataLoader, DataLoader]:
+	"""
+	Prepare training and validation dataloaders.
 
-def get_device() -> torch.device:
-    """
-    Get the available torch device (GPU if available, otherwise CPU).
+	Args:
+		train_sequences: Array of training sequences.
+		val_sequences: Array of validation sequences.
+		batch_size (int): Batch size for dataloaders.
+		train_labels (Optional[np.ndarray]): Labels for training sequences. If provided, only normal sequences are used. Default is None.
+		normal_label (int): Label value indicating normal samples. Default is 0.
 
-    Returns:
-        torch.device: The device to use for training.
-    """    
-    
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	Returns:
+		Tuple[DataLoader, DataLoader]: Training and validation dataloaders.
+	"""
+ 
+	if train_labels is not None:
+		labels = np.asarray(train_labels).astype(int)
+		if labels.shape[0] != len(train_sequences):
+			raise ValueError("train_labels length must match train_sequences length.")
+		mask = labels == normal_label
+		if not np.any(mask):
+			raise ValueError("No normal sequences available for training.")
+		train_sequences = train_sequences[mask]
 
-def create_dataloaders(
-    windowed: WindowedSplits,
-    *,
-    batch_size: int = 64,
-    shuffle: bool = True,
-) -> AutoencoderLoaders:
-    """
-    Create DataLoaders for LSTM autoencoder training from windowed features.
+	train_ds = TensorDataset(torch.tensor(train_sequences, dtype=torch.float32))
+	val_ds = TensorDataset(torch.tensor(val_sequences, dtype=torch.float32))
+	train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+	val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+	return train_loader, val_loader
 
-    Args:
-        windowed (WindowedSplits): Windowed features for train/validation/test splits.
-        batch_size (int, optional): Batch size for each DataLoader. Defaults to 64.
-        shuffle (bool, optional): Whether to shuffle the training loader. Defaults to True.
+def train_lstm_autoencoder(
+	model: nn.Module,
+	train_loader: DataLoader,
+	val_loader: DataLoader,
+	training_cfg: Dict,
+	device: torch.device,
+) -> Dict[str, list]:
+	"""
+	Train LSTM autoencoder with early stopping.
 
-    Returns:
-        AutoencoderLoaders: DataLoaders for train/val/test.
-    """    
-    
-    train_loader = _make_loader(windowed.train.windows, batch_size, shuffle)
-    val_loader = _make_loader(windowed.val.windows, batch_size, False)
-    test_loader = _make_loader(windowed.test.windows, batch_size, False)
-    return AutoencoderLoaders(train=train_loader, val=val_loader, test=test_loader)
+	Args:
+		model (nn.Module): LSTM autoencoder model to train.
+		train_loader (DataLoader): Training dataloader.
+		val_loader (DataLoader): Validation dataloader.
+		training_cfg (Dict): Training configuration dictionary with keys: epochs, learning_rate, weight_decay, grad_clip, early_stopping_patience, early_stopping_min_delta, random_seed.
+		device (torch.device): Device to train on.
 
-def train_autoencoder(
-    model: LSTMAutoencoder,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
-    *,
-    epochs: int = 20,
-    lr: float = 1e-3,
-    patience: int = 5,
-    device: Optional[torch.device] = None,
-) -> TrainingResult:
-    """
-    Train the LSTM autoencoder with early stopping based on validation loss.
+	Returns:
+		Dict[str, list]: Training history dictionary with train_loss, val_loss, best_val_loss, and stopped_epoch.
+	"""
+ 
+	torch.manual_seed(int(training_cfg.get("random_seed", 42)))
+	criterion = nn.MSELoss()
+	optimizer = torch.optim.Adam(
+		model.parameters(),
+		lr=float(training_cfg["learning_rate"]),
+		weight_decay=float(training_cfg.get("weight_decay", 0.0)),
+	)
+	max_grad_norm = float(training_cfg.get("grad_clip", 0.0))
+	patience = int(training_cfg.get("early_stopping_patience", 0))
+	min_delta = float(training_cfg.get("early_stopping_min_delta", 0.0))
+	best_val_loss = float("inf")
+	best_state = None
+	patience_counter = 0
 
-    Args:
-        model (LSTMAutoencoder): The LSTM autoencoder to train.
-        train_loader (DataLoader): DataLoader for the training set.
-        val_loader (DataLoader): DataLoader for the validation set.
-        epochs (int, optional): Maximum number of training epochs. Defaults to 20.
-        lr (float, optional): Learning rate for the Adam optimizer. Defaults to 1e-3.
-        patience (int, optional): Number of epochs to wait for improvement before stopping. Defaults to 5.
-        device (Optional[torch.device], optional): The device to use for training. Defaults to None.
+	history = {"train_loss": [], "val_loss": []}
+	epochs = int(training_cfg["epochs"])
+	for epoch in range(epochs):
+		model.train()
+		train_loss = 0.0
+		for (batch,) in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]", leave=False):
+			batch = batch.to(device)
+			optimizer.zero_grad()
+			recon = model(batch)
+			loss = criterion(recon, batch)
+			loss.backward()
+			if max_grad_norm > 0:
+				torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+			optimizer.step()
+			train_loss += loss.item() * batch.size(0)
+		train_loss /= len(train_loader.dataset)
+		history["train_loss"].append(train_loss)
 
-    Returns:
-        TrainingResult: The result of the training process.
-    """    
+		model.eval()
+		val_loss = 0.0
+		with torch.no_grad():
+			for (batch,) in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]", leave=False):
+				batch = batch.to(device)
+				recon = model(batch)
+				loss = criterion(recon, batch)
+				val_loss += loss.item() * batch.size(0)
+		val_loss /= len(val_loader.dataset)
+		history["val_loss"].append(val_loss)
 
-    device = device or get_device()
-    model.to(device)
+		if val_loss < (best_val_loss - min_delta):
+			best_val_loss = val_loss
+			best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+			patience_counter = 0
+			print(f"✓ Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f} (Best)")
+		else:
+			patience_counter += 1
+			print(f"  Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
+			if patience > 0 and patience_counter >= patience:
+				print(f"Early stopping triggered at epoch {epoch+1}")
+				break
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.MSELoss(reduction="mean")
+	if best_state is not None:
+		model.load_state_dict(best_state)
 
-    history: Dict[str, List[float]] = {"train": [], "val": []}
-    best_val_loss = float("inf")
-    best_state_dict: Dict[str, torch.Tensor] = {}
-    epochs_no_improve = 0
+	history["best_val_loss"] = best_val_loss
+	history["stopped_epoch"] = epoch + 1
 
-    for _ in range(epochs):
-        train_loss = _run_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss = _run_epoch(model, val_loader, criterion, None, device)
+	print(f"\n{'='*60}")
+	print(f"Training Complete!")
+	print(f"  Total Epochs: {epoch + 1}")
+	print(f"  Final Train Loss: {history['train_loss'][-1]:.6f}")
+	print(f"  Final Val Loss: {history['val_loss'][-1]:.6f}")
+	print(f"  Best Val Loss: {best_val_loss:.6f}")
+	print(f"{'='*60}\n")
 
-        history["train"].append(train_loss)
-        history["val"].append(val_loss)
+	return history
 
-        if val_loss < best_val_loss - 1e-6:
-            best_val_loss = val_loss
-            best_state_dict = _clone_state_dict(model.state_dict())
-            epochs_no_improve = 0
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= patience:
-                break
+def save_model(model: nn.Module, output_path: Path) -> Path:
+	"""
+	Save trained model state dictionary to disk.
 
-    if best_state_dict:
-        model.load_state_dict(best_state_dict)
+	Args:
+		model (nn.Module): Trained model to save.
+		output_path (Path): Destination file path for model weights.
 
-    return TrainingResult(
-        history=history,
-        best_state_dict=best_state_dict,
-        best_val_loss=best_val_loss,
-    )
+	Returns:
+		Path: Path where the model was saved.
+	"""
+	output_path = Path(output_path)
+	output_path.parent.mkdir(parents=True, exist_ok=True)
+	torch.save(model.state_dict(), output_path)
+	return output_path
 
-def _make_loader(windows: np.ndarray, batch_size: int, shuffle: bool) -> DataLoader:
-    """
-    Create a DataLoader from windowed features.
+def plot_training_history(history: Dict[str, list]):
+	"""
+	Plot training and validation loss history.
 
-    Args:
-        windows (np.ndarray): The windowed features.
-        batch_size (int): The batch size for the DataLoader.
-        shuffle (bool): Whether to shuffle the data.
+	Args:
+		history (Dict[str, list]): Training history dictionary with 'train_loss' and 'val_loss' keys.
 
-    Returns:
-        DataLoader: The created DataLoader.
-    """    
-    
-    tensor = torch.tensor(windows, dtype=torch.float32)
-    dataset = TensorDataset(tensor)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-
-def _run_epoch(
-    model: LSTMAutoencoder,
-    loader: DataLoader,
-    criterion: nn.Module,
-    optimizer: Optional[torch.optim.Optimizer],
-    device: torch.device,
-) -> float:
-    """
-    Run a single epoch of training or validation.
-
-    Args:
-        model (LSTMAutoencoder): The LSTM autoencoder to train or validate.
-        loader (DataLoader): The DataLoader for the dataset.
-        criterion (nn.Module): The loss function.
-        optimizer (Optional[torch.optim.Optimizer]): The optimizer for training.
-        device (torch.device): The device to use for training or validation.
-
-    Returns:
-        float: The average loss for the epoch.
-    """    
-    
-    model.train(optimizer is not None)
-    running_loss = 0.0
-    total = 0
-
-    for (batch,) in loader:
-        batch = batch.to(device)
-        if optimizer is not None:
-            optimizer.zero_grad()
-        reconstruction = model(batch)
-        loss = criterion(reconstruction, batch)
-        if optimizer is not None:
-            loss.backward()
-            optimizer.step()
-
-        running_loss += loss.item() * batch.size(0)
-        total += batch.size(0)
-
-    return running_loss / max(total, 1)
-
-def _clone_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """
-    Create a deep copy of a model's state_dict with all tensors detached and moved to CPU.
-
-    Args:
-        state_dict (Dict[str, torch.Tensor]): The state dictionary to clone.
-
-    Returns:
-        Dict[str, torch.Tensor]: A deep copy of the state dictionary with all tensors detached and moved to CPU.
-    """    
-    
-    return {key: value.detach().cpu().clone() for key, value in state_dict.items()}
+	Returns:
+		matplotlib.axes.Axes: Axes object with plotted training history.
+	"""
+ 
+	fig, ax = plt.subplots(figsize=(8, 3))
+	ax.plot(history.get("train_loss", []), label="train")
+	ax.plot(history.get("val_loss", []), label="val")
+	ax.set_xlabel("Epoch")
+	ax.set_ylabel("MSE loss")
+	ax.legend()
+	return ax

@@ -1,170 +1,109 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import List, Tuple
 import numpy as np
 import pandas as pd
 
-@dataclass(frozen=True)
-class WindowedFeatures:
-    """
-    Container for windowed features used in LSTM autoencoder training.
-    """    
+BASE_FEATURES = [
+	"gearbox_oil_temp",
+	"gearbox_bearing_temp",
+	"vibration_x",
+	"vibration_y",
+	"vibration_z",
+	"oil_pressure",
+]
 
-    windows: np.ndarray
-    window_start_indices: np.ndarray
-    window_end_timestamps: Optional[np.ndarray]
+ENGINEERED_FEATURES = [
+	"temp_diff",
+	"vibration_rms",
+	"vibration_mag",
+	"oil_pressure_delta",
+	"particle_count_delta",
+	"hour_sin",
+	"hour_cos",
+	"month_sin",
+	"month_cos",
+]
 
+def _clean_particle_delta(
+	delta: pd.Series,
+	reset_quantile: float,
+	clip_quantile: float,
+) -> pd.Series:
+	"""
+	Clean particle count delta series by resetting negative spikes and clipping outliers.
 
-@dataclass(frozen=True)
-class WindowedSplits:
-    """
-    Container for windowed features for train/validation/test splits.
-    """    
+	Args:
+		delta (pd.Series): Particle count delta series to clean.
+		reset_quantile (float): Quantile threshold for resetting negative deltas. Must be between 0 and 1.
+		clip_quantile (float): Quantile threshold for clipping extreme values. Must be in (0, 1].
 
-    train: WindowedFeatures
-    val: WindowedFeatures
-    test: WindowedFeatures
+	Returns:
+		pd.Series: Cleaned particle delta series with NaN values filled as 0.
+	"""
+ 
+	cleaned = delta.copy()
 
+	if not 0 < reset_quantile < 1:
+		raise ValueError("reset_quantile must be between 0 and 1.")
+	neg_delta = cleaned[cleaned < 0]
+	if not neg_delta.empty:
+		reset_threshold = neg_delta.quantile(reset_quantile)
+		cleaned = cleaned.mask(cleaned < reset_threshold, 0.0)
 
-def create_sliding_windows(
-    data: np.ndarray,
-    window_size: int,
-    step_size: int,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Create sliding windows from multivariate time series data.
+	if not 0 < clip_quantile <= 1:
+		raise ValueError("clip_quantile must be in (0, 1].")
+	clip_value = cleaned.abs().quantile(clip_quantile)
+	if clip_value > 0:
+		cleaned = cleaned.clip(-clip_value, clip_value)
 
-    Args:
-        data (np.ndarray): Input data of shape (n_samples, n_features).
-        window_size (int): Length of each sequence window.
-        step_size (int): Stride between windows.
+	return cleaned.fillna(0.0)
 
-    Raises:
-        ValueError: If window_size is less than 1.
-        ValueError: If step_size is less than 1.
-        ValueError: If data does not have the correct shape.
-        ValueError: If window_size is greater than the number of samples.
+def engineer_features(
+	df: pd.DataFrame,
+	particle_reset_quantile: float = 0.01,
+	particle_delta_clip_quantile: float = 0.99,
+) -> Tuple[pd.DataFrame, List[str]]:
+	"""
+	Engineer features from raw turbine sensor data.
 
-    Returns:
-        Tuple[np.ndarray, np.ndarray]: Array of shape (n_windows, window_size, n_features) and start indices.
-    """    
-    
-    if window_size < 1:
-        raise ValueError("window_size must be >= 1.")
-    if step_size < 1:
-        raise ValueError("step_size must be >= 1.")
-    if data.ndim != 2:
-        raise ValueError("data must have shape (n_samples, n_features).")
+	Args:
+		df (pd.DataFrame): Raw DataFrame containing base features and timestamp column.
+		particle_reset_quantile (float): Quantile for resetting negative particle count deltas. Default is 0.01.
+		particle_delta_clip_quantile (float): Quantile for clipping particle count delta outliers. Default is 0.99.
 
-    n_samples = data.shape[0]
-    if window_size > n_samples:
-        raise ValueError("window_size must be <= number of samples.")
-    n_windows = 1 + (n_samples - window_size) // step_size
+	Returns:
+		Tuple[pd.DataFrame, List[str]]: DataFrame with engineered features and list of all feature column names.
+	"""
+ 
+	features = df.copy()
 
-    windows = np.empty((n_windows, window_size, data.shape[1]), dtype=data.dtype)
-    start_indices = np.empty(n_windows, dtype=np.int64)
+	features["temp_diff"] = features["gearbox_bearing_temp"] - features["gearbox_oil_temp"]
+	features["vibration_rms"] = np.sqrt(
+		(
+			features["vibration_x"] ** 2
+			+ features["vibration_y"] ** 2
+			+ features["vibration_z"] ** 2
+		)
+		/ 3.0
+	)
+	features["vibration_mag"] = np.sqrt(
+		features["vibration_x"] ** 2
+		+ features["vibration_y"] ** 2
+		+ features["vibration_z"] ** 2
+	)
+	features["oil_pressure_delta"] = features["oil_pressure"].diff().fillna(0.0)
+	particle_delta = features["particle_count"].diff().fillna(0.0)
+	features["particle_count_delta"] = _clean_particle_delta(
+		particle_delta,
+		particle_reset_quantile,
+		particle_delta_clip_quantile,
+	)
+	timestamps = pd.to_datetime(features["timestamp"], errors="coerce")
+	hour = timestamps.dt.hour + (timestamps.dt.minute / 60.0)
+	month = timestamps.dt.month.astype(float)
+	features["hour_sin"] = np.sin(2 * np.pi * hour / 24.0)
+	features["hour_cos"] = np.cos(2 * np.pi * hour / 24.0)
+	features["month_sin"] = np.sin(2 * np.pi * (month - 1) / 12.0)
+	features["month_cos"] = np.cos(2 * np.pi * (month - 1) / 12.0)
 
-    for i in range(n_windows):
-        start = i * step_size
-        end = start + window_size
-        windows[i] = data[start:end]
-        start_indices[i] = start
-
-    return windows, start_indices
-
-def build_windowed_features(
-    df: pd.DataFrame,
-    feature_columns: Sequence[str],
-    window_size: int,
-    step_size: int,
-    *,
-    timestamp_col: str = "timestamp",
-) -> WindowedFeatures:
-    """
-    Build windowed features from a dataframe for LSTM autoencoder training.
-
-    Args:
-        df (pd.DataFrame): Input dataframe with scaled features.
-        feature_columns (Sequence[str]): Columns to include in the window tensors.
-        window_size (int): Length of each sequence window.
-        step_size (int): Stride between windows.
-        timestamp_col (str, optional): Timestamp column name used to record window end times. Defaults to "timestamp".
-
-    Raises:
-        ValueError: If any feature column is not found in the dataframe.
-        ValueError: If window_size is less than 1.
-        ValueError: If step_size is less than 1.
-        ValueError: If data does not have the correct shape.
-        ValueError: If window_size is greater than the number of samples.
-
-    Returns:
-        WindowedFeatures: Container for windowed features.
-    """    
-    
-    missing = [col for col in feature_columns if col not in df.columns]
-    if missing:
-        raise ValueError(f"Feature columns not found: {missing}")
-
-    data = df[list(feature_columns)].to_numpy(dtype=np.float32)
-    windows, start_indices = create_sliding_windows(data, window_size, step_size)
-
-    window_end_timestamps = None
-    if timestamp_col in df.columns:
-        end_indices = start_indices + window_size - 1
-        window_end_timestamps = df[timestamp_col].iloc[end_indices].to_numpy()
-
-    return WindowedFeatures(
-        windows=windows,
-        window_start_indices=start_indices,
-        window_end_timestamps=window_end_timestamps,
-    )
-
-def build_windowed_splits(
-    train_df: pd.DataFrame,
-    val_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    feature_columns: Sequence[str],
-    *,
-    window_size: int = 60,
-    step_size: int = 5,
-    timestamp_col: str = "timestamp",
-) -> WindowedSplits:
-    """
-    Build windowed features for train/validation/test splits.
-
-    Args:
-        train_df (pd.DataFrame): DataFrame containing training data.
-        val_df (pd.DataFrame): DataFrame containing validation data.
-        test_df (pd.DataFrame): DataFrame containing test data.
-        feature_columns (Sequence[str]): Columns to include in the window tensors.
-        window_size (int, optional): Length of each sequence window. Defaults to 60.
-        step_size (int, optional): Stride between windows. Defaults to 5.
-        timestamp_col (str, optional): Timestamp column name used to record window end times. Defaults to "timestamp".
-
-    Returns:
-        WindowedSplits: Container for windowed features for each split.
-    """    
-    
-    return WindowedSplits(
-        train=build_windowed_features(
-            train_df,
-            feature_columns,
-            window_size,
-            step_size,
-            timestamp_col=timestamp_col,
-        ),
-        val=build_windowed_features(
-            val_df,
-            feature_columns,
-            window_size,
-            step_size,
-            timestamp_col=timestamp_col,
-        ),
-        test=build_windowed_features(
-            test_df,
-            feature_columns,
-            window_size,
-            step_size,
-            timestamp_col=timestamp_col,
-        ),
-    )
+	feature_cols = BASE_FEATURES + ENGINEERED_FEATURES
+	return features, feature_cols
