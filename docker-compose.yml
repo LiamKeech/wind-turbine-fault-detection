@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    image: wind-turbine-fault-detection:latest
+    volumes:
+      # Host must have run `git lfs pull` first so this contains real
+      # CSV/model files rather than LFS pointer stubs.
+      - ./data:/app/data
+    # Usage:
+    #   docker compose run --rm app train --track lof
+    #   docker compose run --rm app train --track lstm
+    #   docker compose run --rm app evaluate --track lstm
+    #   docker compose run --rm app report --track lof
+    command: ["--help"]

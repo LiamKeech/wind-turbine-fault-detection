@@ -1,0 +1,19 @@
+.git
+.gitattributes
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Data is mounted as a volume at runtime, not baked into the image
+# (also avoids copying LFS pointer files if `git lfs pull` wasn't run).
+data/
+
+notebooks/
+tests/
+.dockerignore
+docker-compose.yml
+README.md
