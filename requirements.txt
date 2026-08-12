@@ -1,0 +1,16 @@
+# Runtime dependencies for both anomaly-detection tracks
+# (LOF: src/data|features/models/training/visualization/lof_*.py,
+#  LSTM autoencoder: src/data|features/models/training/evaluation/lstm_autoencoder_*.py)
+#
+# Target interpreter: Python 3.10-3.11 (PyTorch wheel availability is the
+# limiting factor; do not run this project on Python 3.12+ without first
+# confirming a matching torch wheel exists).
+
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2
+matplotlib==3.8.4
+torch==2.2.2
+PyYAML==6.0.1
+joblib==1.4.2
+tqdm==4.66.4
