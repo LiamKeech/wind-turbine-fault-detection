@@ -57,8 +57,14 @@ wind-turbine-fault-detection/
 
 ```bash
 git clone <repo-url> && cd wind-turbine-fault-detection
-git lfs install && git lfs pull        # fetch the real CSV/model files
+git lfs install && git lfs pull
+```
 
+**Required:** run `git lfs pull` before running anything in this repo — the
+dataset CSVs and saved model artefacts are Git LFS-tracked, and without it
+you'll only have pointer stub files instead of real data.
+
+```bash
 python -m venv .venv
 source .venv/bin/activate              # .venv\Scripts\activate on Windows
 
