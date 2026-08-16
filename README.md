@@ -121,3 +121,7 @@ I wrote the **LOF anomaly-detection track** end to end: preprocessing, features,
 The **LSTM autoencoder track** (`src/**/lstm_autoencoder_*.py`, `src/evaluation/`, `src/config/`, `notebooks/LSTM Autoencoder.ipynb`) was written by my collaborator.
 
 `main.py`, `README.md`, `requirements*.txt`, `Dockerfile`, `docker-compose.yml`, `tests/lof/`, and `tests/lstm/` cover both tracks at the wiring and infra level but don't modify either track's modeling code.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
