@@ -1,5 +1,11 @@
 # Wind Turbine Fault Detection
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![Tests: pytest](https://img.shields.io/badge/tests-pytest-0A9EDC)](tests/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Two anomaly-detection pipelines for spotting early-stage faults in wind turbine gearbox and drivetrain sensor data: an **LSTM Autoencoder** (deep learning, sequence reconstruction) and a **Local Outlier Factor (LOF)** model (density-based, statistical). Both work on multivariate time-series sensor data and flag anomalous readings to help reduce unplanned downtime.
 
 ## Dataset
@@ -16,6 +22,16 @@ Raw sensor readings live in `data/raw/` as Git LFS-tracked CSVs, one 10-minute s
 | `particle_count` | int | Particle count in oil (contamination indicator) | count |
 
 `turbine_5yr_complex_data.csv` is unlabeled and used by the LOF track. `turbine_5yr_labeled_data.csv` includes an `is_anomaly` column and is used by the LSTM track for threshold tuning and evaluation.
+
+## Visuals
+
+LSTM autoencoder evaluation dashboard (`python main.py report --track lstm`):
+
+![LSTM evaluation dashboard](data/processed/lstm_autoencoder/report/evaluation_dashboard.png)
+
+LOF anomaly rate over time (`python main.py report --track lof`):
+
+![LOF anomaly rate timeline](data/processed/lof/report/rate_timeline.png)
 
 ## Setup
 
@@ -71,6 +87,28 @@ pytest tests/lof tests/lstm
 ```
 
 `tests/lof/` covers preprocessing, feature engineering, model, and training. `tests/lstm/` covers the autoencoder forward pass, threshold tuning, and evaluation metrics in isolation with fixed/mocked inputs, not a freshly trained model, since training the LSTM is too slow and flaky for CI.
+
+## Performance
+
+From the saved `metrics.json`/`summary.csv` in each track's `report/` folder, on the bundled dataset:
+
+| Track | Metric | Value |
+|---|---|---|
+| LSTM Autoencoder (sequence-level) | Precision | 0.054 |
+| LSTM Autoencoder (sequence-level) | Recall | 1.000 |
+| LSTM Autoencoder (sequence-level) | F1-Score | 0.102 |
+| LSTM Autoencoder (sequence-level) | AUC | 1.000 |
+| LOF (unsupervised, no ground-truth labels) | Anomaly rate | 27.6% (72,645 / 262,741 rows) |
+
+LSTM precision is low relative to recall/AUC because the default `threshold_quantile` favors catching every true anomaly over minimizing false positives; see [Known limitations](#known-limitations) for tuning guidance. LOF has no labeled ground truth to score against, so it's reported as a raw anomaly rate rather than precision/recall.
+
+## Roadmap
+
+- Real-time inference API (e.g., FastAPI endpoint wrapping the saved LSTM/LOF models)
+- CI pipeline (GitHub Actions) running `pytest` and Docker build checks on every PR
+- Experiment tracking / model registry (e.g., MLflow) instead of flat files under `data/processed/`
+- Ensemble scoring that combines LOF and LSTM anomaly signals
+- Automatic threshold calibration against a held-out labeled set, instead of a fixed `threshold_quantile`
 
 ## Docker
 
