@@ -1,0 +1,40 @@
+{
+  "base_features": [
+    "gearbox_oil_temp",
+    "gearbox_bearing_temp",
+    "vibration_x",
+    "vibration_y",
+    "vibration_z",
+    "oil_pressure",
+    "particle_count"
+  ],
+  "feature_columns": [
+    "gearbox_oil_temp",
+    "gearbox_bearing_temp",
+    "vibration_x",
+    "vibration_y",
+    "vibration_z",
+    "oil_pressure",
+    "particle_count",
+    "gearbox_oil_temp_roll_mean",
+    "gearbox_bearing_temp_roll_mean",
+    "vibration_x_roll_mean",
+    "vibration_y_roll_mean",
+    "vibration_z_roll_mean",
+    "oil_pressure_roll_mean",
+    "particle_count_roll_mean",
+    "gearbox_oil_temp_roll_std",
+    "gearbox_bearing_temp_roll_std",
+    "vibration_x_roll_std",
+    "vibration_y_roll_std",
+    "vibration_z_roll_std",
+    "oil_pressure_roll_std",
+    "particle_count_roll_std"
+  ],
+  "threshold": 1.1982968877277185,
+  "train_end": 183918,
+  "val_end": 223329,
+  "rolling_window": 60,
+  "timestamp_col": "timestamp",
+  "data_path": "/app/data/raw/turbine_5yr_complex_data.csv"
+}

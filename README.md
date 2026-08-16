@@ -50,7 +50,8 @@ wind-turbine-fault-detection/
 │   ├── evaluation/              # LSTM metrics + evaluation dashboard
 │   └── visualization/           # LOF plots
 └── tests/
-    └── lof/                     # unit tests for the LOF track
+    ├── lof/                     # unit tests for the LOF track
+    └── lstm/                    # unit tests for the LSTM autoencoder track
 ```
 
 ## Setup
@@ -119,11 +120,13 @@ CSVs, and a `report/` subfolder with plots and metrics).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest tests/lof
+pytest tests/lof tests/lstm
 ```
 
-Tests cover the LOF track only (preprocessing, feature engineering, model,
-training) — see [Contributions](#contributions) below.
+- `tests/lof/`: preprocessing, feature engineering, model, training.
+- `tests/lstm/`: autoencoder forward pass, threshold tuning, and evaluation
+  metrics — tested in isolation with fixed/mocked inputs, not a freshly
+  trained model (training the LSTM is too slow/flaky for CI).
 
 ## Docker
 
@@ -150,5 +153,6 @@ image. See [Dockerfile](Dockerfile) / [docker-compose.yml](docker-compose.yml).
   `src/evaluation/`, `src/config/`, `notebooks/LSTM Autoencoder.ipynb`):
   written by my collaborator.
 - `main.py`, `README.md`, `requirements*.txt`, `Dockerfile`,
-  `docker-compose.yml`, and `tests/lof/` (this pass) cover both tracks at
-  the wiring/infra level but do not modify either track's modeling code.
+  `docker-compose.yml`, `tests/lof/`, and `tests/lstm/` (this pass) cover
+  both tracks at the wiring/infra level but do not modify either track's
+  modeling code.
