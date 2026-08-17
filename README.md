@@ -36,7 +36,7 @@ LOF anomaly rate over time (`python main.py report --track lof`):
 ## Setup
 
 ```bash
-git clone <repo-url> && cd wind-turbine-fault-detection
+git clone https://github.com/LiamKeech/wind-turbine-fault-detection && cd wind-turbine-fault-detection
 git lfs install && git lfs pull
 ```
 
